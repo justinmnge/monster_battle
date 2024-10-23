@@ -14,12 +14,13 @@ class Game:
         self.clock = pygame.time.Clock()
         self.running = True
         self.import_assets()
+        self.player_active = True
         
         # groups
         self.all_sprites = pygame.sprite.Group()
         
         # data
-        player_monster_list = ['Sparchu', 'Cleaf', 'Jacana']
+        player_monster_list = ['Sparchu', 'Cleaf', 'Jacana', 'Gulfin', 'Pouch', 'Larvea']
         self.player_monsters = [Monster(name, self.back_surfs[name]) for name in player_monster_list]
         self.monster = self.player_monsters[0]
         self.all_sprites.add(self.monster)
@@ -27,12 +28,43 @@ class Game:
         self.opponent = Opponent(opponent_name, self.front_surfs[opponent_name], self.all_sprites)
         
         # ui
-        self.ui = UI(self.monster)
+        self.ui = UI(self.monster, self.player_monsters, self.simple_surfs, self.get_input)
+        
+        # timers
+        self.timers = {'player end': Timer(1000, func = self.opponent_turn), 'opponent end': Timer(1000, func = self.player_turn)}
+    
+    def get_input(self, state, data = None):
+        if state == 'attack':
+            self.apply_attack(self.opponent, data)
+        
+        elif state == 'escape':
+            self.running = False
+        self.player_active = False
+        self.timers['player end'].activate()
+        
+    def apply_attack(self, target, attack):
+        attack_data = ABILITIES_DATA[attack]
+        attack_multiplier = ELEMENT_DATA[attack_data['element']][target.element]
+        target.health -= attack_data['damage'] * attack_multiplier
+        print(f'{attack}, {target.health}/{target.max_health}')
+    
+    def opponent_turn(self):
+        attack = choice(self.opponent.abilities)
+        self.apply_attack(self.monster, attack)
+        self.timers['opponent end'].activate()
+    
+    def player_turn(self):
+        self.player_active = True
+    
+    def update_timers(self):
+        for timer in self.timers.values():
+            timer.update()
         
     def import_assets(self):
         self.back_surfs = folder_importer('images', 'back')
         self.front_surfs = folder_importer('images', 'front')
         self.bg_surfs = folder_importer('images', 'other')
+        self.simple_surfs = folder_importer('images', 'simple')
         
     def draw_monster_floor(self):
         for sprite in self.all_sprites:
@@ -47,8 +79,10 @@ class Game:
                     self.running = False
             
             # update
+            self.update_timers()
             self.all_sprites.update(dt)
-            self.ui.update()
+            if self.player_active:
+                self.ui.update()
             
             # draw
             self.display_surface.blit(self.bg_surfs['bg'], (0, 0))
